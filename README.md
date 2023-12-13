@@ -1,6 +1,6 @@
 # Beer Pong Mastery: A Motion Capture Study 🎥📈
 
-![GIF Animation Demo](https://github.com/dlundgaard/BeerPongMastery/assets/57355392/fbc010dd-f408-4b3f-aaf2-af3f2da4e052)
+![GIF Animation Demo](https://github.com/dlundgaard/BeerPongMastery/blob/main/Showcase/full.gif?raw=true)
 
 ![Ball Altitude](https://github.com/dlundgaard/BeerPongMastery/blob/main/Showcase/Ball_Altitude.png?raw=true)
 
