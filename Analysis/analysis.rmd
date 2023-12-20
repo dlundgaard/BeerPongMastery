@@ -1,0 +1,77 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(gridExtra)
+library(rstanarm)
+library(bayesplot)
+
+theme_set(theme_minimal())
+
+data_summary <- read_csv(
+  "summary.csv",
+  col_types = c(
+    Session = "f",
+    Player = "f",
+    Participant = "f",
+    Condition = "f",
+    Outcome = "f"
+  )
+)
+
+data_summary
+```
+
+```{r}
+ggplot(data_summary) +
+  geom_density(aes(BallCentroidDistanceAtBrimPlane), fill = "blue", alpha = 0.5) +
+  coord_cartesian(xlim = c(0, 25))
+
+ggplot(data_summary) +
+  geom_density(aes(log(BallCentroidDistanceAtBrimPlane)), fill = "blue", alpha = 0.5)
+```
+
+
+```{r}
+fit <- stan_glmer(
+  log(BallCentroidDistanceAtBrimPlane) ~ Player + (1 | Participant),
+  data = data_summary,
+  family = gaussian,
+  # family = gaussian(link = "log"),
+  chains = 2,
+  seed = 0,
+  refresh = 0
+)
+
+mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
+
+print(fit, digits = 3, detail = FALSE)
+```
+```{r}
+fit <- stan_glmer(
+  log(BallCentroidDistanceAtBrimPlane) ~ Trial * Condition + (Condition | Participant),
+  data = data_summary,
+  family = gaussian,
+  # family = gaussian(link = "log"),
+  chains = 2,
+  seed = 0,
+  refresh = 0
+)
+
+mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
+mcmc_areas(fit, prob = 0.95, pars = c("ConditionDaylight"))
+mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionDaylight"))
+pp_check(fit)
+
+print(fit, digits = 3, detail = FALSE)
+
+sprintf("Probability of the interaction term Trial:ConditionDaylight being negative (learning being enhanced in lit conditions) is %.1f%%", 100 * mean(as.data.frame(fit)$`Trial:ConditionDaylight` < 0)) %>% cat
+```
+
+
+
+
