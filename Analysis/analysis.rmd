@@ -14,8 +14,8 @@ library(bayestestR)
 
 theme_set(theme_minimal())
 
-data_summary <- read_csv(
-  "summary.csv",
+data_aggregated <- read_csv(
+  "aggregated.csv",
   col_types = c(
     Session = "f",
     Player = "f",
@@ -25,17 +25,20 @@ data_summary <- read_csv(
   )
 )
 
-data_summary
-
-OUTCOME_VAR <- with(data_summary, BallCentroidDistanceAtBrimPlane)
+data_aggregated
 ```
 
 ```{r}
-ggplot(data_summary) +
+ggplot(data_aggregated) +
+  geom_boxplot(aes(Participant, log(BallCentroidDistanceAtBrimPlane)), fill = "blue", alpha = 0.5)
+```
+
+```{r}
+ggplot(data_aggregated) +
   geom_density(aes(BallCentroidDistanceAtBrimPlane), fill = "blue", alpha = 0.5) +
   coord_cartesian(xlim = c(0, 25))
 
-ggplot(data_summary) +
+ggplot(data_aggregated) +
   geom_density(aes(log(BallCentroidDistanceAtBrimPlane)), fill = "blue", alpha = 0.5)
 ```
 
@@ -43,7 +46,7 @@ ggplot(data_summary) +
 ```{r}
 fit <- stan_glmer(
   log(BallCentroidDistanceAtBrimPlane) ~ Player + (1 | Participant),
-  data = data_summary,
+  data = subset(data_aggregated, Session != 6),
   family = gaussian,
   # family = gaussian(link = "log"),
   chains = 2,
@@ -52,13 +55,15 @@ fit <- stan_glmer(
 )
 
 mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
-
+ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
 print(fit, digits = 3, detail = FALSE)
+sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
 ```
+
 ```{r}
 fit <- stan_glmer(
   log(BallCentroidDistanceAtBrimPlane) ~ Trial * Condition + (Condition | Participant),
-  data = data_summary,
+  data = data_aggregated,
   family = gaussian,
   # family = gaussian(link = "log"),
   chains = 2,
@@ -72,7 +77,7 @@ mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
 pp_check(fit)
 
 print(fit, digits = 3, detail = FALSE)
-
+ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
 sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
 ```
 
