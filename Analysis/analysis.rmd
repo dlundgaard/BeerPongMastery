@@ -43,29 +43,6 @@ ggplot(data_aggregated) +
   geom_density(aes(log(RadialError)), fill = "blue", alpha = 0.5)
 ```
 
-```{r}
-fit <- stan_glmer(
-  RadialError ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-  data = data_aggregated,
-  family = Gamma(link = "identity"),
-  chains = 2,
-  seed = 0,
-  # refresh = 0
-)
-
-mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
-mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
-mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
-mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
-pp_check(fit)
-
-print(fit, digits = 3, detail = FALSE)
-ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
-cat("\n\n")
-sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
-cat("\n\n")
-sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
-```
 
 ```{r}
 fit <- stan_glmer(
@@ -98,14 +75,14 @@ sprintf("Probability of the interaction term Trial:ConditionLit room being negat
 #   data = data_aggregated,
 #   family = Gamma(link = "identity"),
 #   chains = 2,
-#   refresh = 0,
+#   # refresh = 0,
 #   seed = 0
 # )
 
 modelsummary::modelsummary(
   models = list("Lognormal" = fit, "Gamma" = fit_gamma), 
-  shape = formula(term + statistic ~ model), 
-  statistic = c(CI = "[{conf.low}, {conf.high}]"),
+  # shape = formula(model + term ~ statistic), 
+  statistic = list("CI" = "[{conf.low}, {conf.high}]"),
   coef_omit = c("^Sigma"),
   # gof_map = NA, 
   conf_level = 0.9,
@@ -116,15 +93,19 @@ modelsummary::modelsummary(
 
 
 ```{r}
-ggplot(data_aggregated, aes(CompletedThrows, RadialError)) +
+ggplot(data_aggregated, aes(CompletedThrows, log(RadialError))) +
   geom_jitter(width = 0.15, color = "#2979FF", alpha = 0.6) +
   scale_x_continuous(breaks = c(1, c(5, 10, 15, 20)), minor_breaks = seq(1, 20)) +
-  annotate("rect", xmin = 0, xmax = 10.5, ymin = 0, ymax = Inf, alpha = 0.2, fill = "black") +
-  coord_cartesian(xlim = c(0, 21), ylim = c(0, 55), expand = FALSE) +
+  annotate("rect", xmin = 0, xmax = 10.5, ymin = -1, ymax = Inf, alpha = 0.2, fill = "black") +
+  # coord_cartesian(xlim = c(0, 21), ylim = c(0, 55), expand = FALSE) +
+  coord_cartesian(xlim = c(0, 21), ylim = c(-1, 5), expand = FALSE) +
   # geom_smooth(data = subset(data_aggregated, Condition == "Dark room"), method="glm", method.args = list(family = Gamma(link = "identity")), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
   # geom_smooth(data = subset(data_aggregated, Condition == "Lit room"), method="glm", method.args = list(family = Gamma(link = "identity")), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
-  geom_line(aes(x = ifelse(Condition == "Dark room", 5, 15), y = colMeans(posterior_predict(fit, data_aggregated)))) +
-  labs(x = "Trial", y = "Radial Error (cm)") +
+  # geom_smooth(data = subset(data_aggregated, Condition == "Dark room"), method="glm", method.args = list(family = gaussian), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
+  # geom_smooth(data = subset(data_aggregated, Condition == "Lit room"), method="glm", method.args = list(family = gaussian), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
+  geom_abline(data = as.data.frame(fit), aes(intercept = `(Intercept)`, slope = `Trial`), color = "#F50057", linewidth = 0.2, alpha = 0.01) +
+  geom_abline(data = as.data.frame(fit), aes(intercept = `(Intercept)` + `ConditionLit room`, slope = `Trial` + `Trial:ConditionLit room`), color = "#F50057", linewidth = 0.2, alpha = 0.01) +
+  labs(x = "Trial", y = "Radial Error (log cm)") +
   theme(
     plot.margin = margin(0, 0, 0, 0),
     axis.title.x = element_text(margin = margin(t = 20, b = 5)),
