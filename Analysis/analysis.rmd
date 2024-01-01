@@ -41,6 +41,9 @@ ggplot(data_aggregated) +
 
 ggplot(data_aggregated) +
   geom_density(aes(log(RadialError)), fill = "blue", alpha = 0.5)
+
+ggplot(data_aggregated) +
+  geom_density(aes(log(RectificationError)), fill = "blue", alpha = 0.5)
 ```
 
 
@@ -60,37 +63,13 @@ mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
 mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
 mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
 
-print(fit, digits = 3, detail = FALSE)
 ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
+print(fit, digits = 3, detail = FALSE)
 cat("\n\n")
 sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
 cat("\n\n")
 sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
 ```
-
-
-```{r}
-# fit_gamma <- stan_glmer(
-#   RadialError ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-#   data = data_aggregated,
-#   family = Gamma(link = "identity"),
-#   chains = 2,
-#   # refresh = 0,
-#   seed = 0
-# )
-
-modelsummary::modelsummary(
-  models = list("Lognormal" = fit, "Gamma" = fit_gamma), 
-  # shape = formula(model + term ~ statistic), 
-  statistic = list("CI" = "[{conf.low}, {conf.high}]"),
-  coef_omit = c("^Sigma"),
-  # gof_map = NA, 
-  conf_level = 0.9,
-  fmt = 3
-  # output = "table.docx"
-)
-```
-
 
 ```{r}
 ggplot(data_aggregated, aes(CompletedThrows, log(RadialError))) +
@@ -116,7 +95,60 @@ ggplot(data_aggregated, aes(CompletedThrows, log(RadialError))) +
   )
 ```
 
+```{r}
+fit <- stan_glmer(
+  log(RectificationError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
+  data = data_aggregated,
+  family = gaussian,
+  chains = 2,
+  refresh = 0,
+  seed = 0
+)
+pp_check(fit)
 
+mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
+mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
+mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
+mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
+
+ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
+print(fit, digits = 3, detail = FALSE)
+cat("\n\n")
+sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
+cat("\n\n")
+sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
+```
+
+```{r}
+# fit_gamma <- stan_glmer(
+#   RadialError ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
+#   data = data_aggregated,
+#   family = Gamma(link = "identity"),
+#   chains = 2,
+#   # refresh = 0,
+#   seed = 0
+# )
+
+# modelsummary::modelsummary(
+#   models = list("Lognormal" = fit, "Gamma" = fit_gamma), 
+#   # shape = formula(model + term ~ statistic), 
+#   statistic = list("CI" = "[{conf.low}, {conf.high}]"),
+#   coef_omit = c("^Sigma"),
+#   # gof_map = NA, 
+#   conf_level = 0.9,
+#   fmt = 3
+# )
+
+modelsummary::modelsummary(
+  models = fit,
+  shape = formula(term ~ statistic),
+  statistic = list("CI" = "[{conf.low}, {conf.high}]"),
+  coef_omit = c("^Sigma"),
+  # gof_map = NA, 
+  conf_level = 0.9,
+  fmt = 3
+)
+```
 
 
 
