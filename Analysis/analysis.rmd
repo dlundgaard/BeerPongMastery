@@ -6,13 +6,18 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
-library(gridExtra)
+library(extrafont)
+library(facefuns)
+library(ggdist)
 library(rstanarm)
+library(tidybayes)
 library(bayesplot)
 library(bayestestR)
 
+# font_import()
+loadfonts(device = "win")
 
-theme_set(theme_minimal())
+theme_set(theme_minimal(base_family = "Segoe UI"))
 
 data_aggregated <- read_csv(
   "aggregated.csv",
@@ -30,32 +35,28 @@ data_aggregated
 
 ```{r}
 ggplot(data_aggregated) +
-  geom_boxplot(aes(Participant, log(RadialError)), fill = "blue", alpha = 0.5)
+  geom_boxplot(aes(Participant, log(RadialError)), alpha = 0.5)
 ```
 
 ```{r}
 ggplot(data_aggregated) +
-  geom_density(aes(RadialError), fill = "blue", alpha = 0.5) +
-  coord_cartesian(xlim = c(0, 25)) +
-  stat_function(fun = dgamma, args = list(shape = 4, scale = 2.4)) 
-
-ggplot(data_aggregated) +
-  geom_density(aes(log(RadialError)), fill = "blue", alpha = 0.5)
-
-ggplot(data_aggregated) +
-  geom_density(aes(log(RectificationError)), fill = "blue", alpha = 0.5)
+  geom_density(aes(log(RadialError)), fill = "black", alpha = 0.5)
 ```
 
 
 ```{r}
-fit <- stan_glmer(
-  log(RadialError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-  data = data_aggregated,
-  family = gaussian,
-  chains = 2,
-  refresh = 0,
-  seed = 0
-)
+# fit <- stan_glmer(
+#   log(RadialError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
+#   data = data_aggregated,
+#   family = gaussian,
+#   chains = 2,
+#   refresh = 0,
+#   seed = 0
+# )
+# save(fit, file="fit.Rda")
+
+load("fit.Rda")
+
 pp_check(fit)
 
 mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
@@ -71,52 +72,86 @@ cat("\n\n")
 sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
 ```
 
-```{r}
-ggplot(data_aggregated, aes(CompletedThrows, log(RadialError))) +
-  geom_jitter(width = 0.15, color = "#2979FF", alpha = 0.6) +
-  scale_x_continuous(breaks = c(1, c(5, 10, 15, 20)), minor_breaks = seq(1, 20)) +
-  annotate("rect", xmin = 0, xmax = 10.5, ymin = -1, ymax = Inf, alpha = 0.2, fill = "black") +
-  # coord_cartesian(xlim = c(0, 21), ylim = c(0, 55), expand = FALSE) +
-  coord_cartesian(xlim = c(0, 21), ylim = c(-1, 5), expand = FALSE) +
-  # geom_smooth(data = subset(data_aggregated, Condition == "Dark room"), method="glm", method.args = list(family = Gamma(link = "identity")), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
-  # geom_smooth(data = subset(data_aggregated, Condition == "Lit room"), method="glm", method.args = list(family = Gamma(link = "identity")), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
-  # geom_smooth(data = subset(data_aggregated, Condition == "Dark room"), method="glm", method.args = list(family = gaussian), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
-  # geom_smooth(data = subset(data_aggregated, Condition == "Lit room"), method="glm", method.args = list(family = gaussian), formula = y ~ x, color = "#F50057", fill = "#F50057", level = 0.9) +
-  geom_abline(data = as.data.frame(fit), aes(intercept = `(Intercept)`, slope = `Trial`), color = "#F50057", linewidth = 0.2, alpha = 0.01) +
-  geom_abline(data = as.data.frame(fit), aes(intercept = `(Intercept)` + `ConditionLit room`, slope = `Trial` + `Trial:ConditionLit room`), color = "#F50057", linewidth = 0.2, alpha = 0.01) +
-  labs(x = "Trial", y = "Radial Error (log cm)") +
+
+
+```{r fig.width=9, fig.height=6, fig.retina=3}
+dual_color_scale <- c("#1A237E", "#FF6F00")
+
+fit_samples <- as.data.frame(fit)
+slopes.lw = 0.02
+slopes.alpha = 0.01
+preds <- add_linpred_draws(fit, newdata = mutate(data_aggregated, Trial = ConditionTrial), ndraws = 100, value = ".pred")
+
+ggplot(data_aggregated, aes(factor(ConditionTrial), log(RadialError), color = Condition, fill = Condition)) +
+  geom_point(alpha = 0.5, position = position_dodge(width=0.3)) +
+  geom_split_violin(alpha = 0.2, trim = TRUE, color = NA) +
+  coord_cartesian(xlim = c(0, 11), ylim = c(-0.5, 4.8), expand = FALSE) +
+  geom_abline(
+    data = fit_samples,
+    aes(intercept = `(Intercept)`, slope = `Trial`),
+    color = dual_color_scale[1],
+    linewidth = slopes.lw,
+    alpha = slopes.alpha
+  ) +
+  geom_abline(
+    data = summarise(fit_samples, across(everything(), median)),
+    aes(intercept = `(Intercept)`, slope = `Trial`),
+    color = dual_color_scale[1],
+    linewidth = 1
+  ) +
+  geom_abline(
+    data = fit_samples,
+    aes(intercept = `(Intercept)` + `ConditionLit room`, slope = `Trial` + `Trial:ConditionLit room`),
+    color = dual_color_scale[2],
+    linewidth = slopes.lw,
+    alpha = slopes.alpha
+  ) +
+  geom_abline(
+    data = summarise(fit_samples, across(everything(), median)),
+    aes(intercept = `(Intercept)` + `ConditionLit room`, slope = `Trial` + `Trial:ConditionLit room`),
+    color = dual_color_scale[2],
+    linewidth = 1
+  ) +
+  # stat_lineribbon(data = preds, aes(as.numeric(Trial), y = .pred), .width = c(0.99, 0.9), alpha = 0.1) +
+  # stat_summary(data = preds, aes(as.numeric(Trial), .pred), geom = "line", fun = "median", linewidth = 1) +
+  scale_color_manual(values = dual_color_scale) +
+  scale_fill_manual(values = dual_color_scale) +
+  labs(x = "Trial", y = "Radial Error\n(log cm)") +
   theme(
     plot.margin = margin(0, 0, 0, 0),
-    axis.title.x = element_text(margin = margin(t = 20, b = 5)),
-    axis.title.y = element_text(margin = margin(r = 20, l = 5)),
-    panel.grid.minor = element_blank(),
-    axis.line = element_line(color="black", size = 0.5),
-    axis.ticks = element_line(color = "black", size = 0.5)
+    axis.title = element_text(size = 8, color = "#555555"),
+    axis.title.x = element_text(margin = margin(t = 15, b = 5)),
+    axis.title.y = element_text(margin = margin(r = 0, l = 5), angle = 0, vjust = 0.98, hjust = 0.5),
+    panel.grid.minor = element_line(color = "#eeeeee"),
+    panel.grid.major.x = element_blank(),
+    axis.line = element_line(color="#222222", linewidth = 0.2),
+    axis.ticks = element_line(color = "#222222", linewidth = 0.2),
+    axis.ticks.length = unit(4, "pt"),
   )
 ```
 
 ```{r}
-fit <- stan_glmer(
-  log(RectificationError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-  data = data_aggregated,
-  family = gaussian,
-  chains = 2,
-  refresh = 0,
-  seed = 0
-)
-pp_check(fit)
-
-mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
-mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
-mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
-mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
-
-ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
-print(fit, digits = 3, detail = FALSE)
-cat("\n\n")
-sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
-cat("\n\n")
-sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
+# fit <- stan_glmer(
+#   log(RectificationError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
+#   data = data_aggregated,
+#   family = gaussian,
+#   chains = 2,
+#   refresh = 0,
+#   seed = 0
+# )
+# pp_check(fit)
+# 
+# mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
+# mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
+# mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
+# mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
+# 
+# ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
+# print(fit, digits = 3, detail = FALSE)
+# cat("\n\n")
+# sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
+# cat("\n\n")
+# sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
 ```
 
 ```{r}
@@ -142,13 +177,28 @@ sprintf("Probability of the interaction term Trial:ConditionLit room being negat
 modelsummary::modelsummary(
   models = fit,
   shape = formula(term ~ statistic),
-  statistic = list("CI" = "[{conf.low}, {conf.high}]"),
+  statistic = c("[{conf.low}, {conf.high}]"),
   coef_omit = c("^Sigma"),
-  # gof_map = NA, 
   conf_level = 0.9,
   fmt = 3
 )
 ```
+
+```{r}
+# kin_fit <- stan_glmer(
+#   log(RadialError) ~ Trial + Condition + Player + Trial:Condition + BallAltitudeMax + BallSpeedMax + (Condition | Participant),
+#   data = data_aggregated,
+#   family = gaussian,
+#   chains = 2,
+#   refresh = 0,
+#   seed = 0
+# )
+# pp_check(kin_fit)
+# 
+# mutate_if(as.data.frame(ci(kin_fit, ci = 0.9)), is.numeric, round, 3)
+# print(kin_fit, digits = 3, detail = FALSE)
+```
+
 
 
 
