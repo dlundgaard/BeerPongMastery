@@ -28,6 +28,9 @@ data_aggregated <- read_csv(
     Condition = "f",
     Outcome = "f"
   )
+) %>% mutate(
+  ConditionName = Condition,
+  Condition = ifelse(Condition == "Dark room", 0, 1)
 )
 
 data_aggregated
@@ -45,44 +48,42 @@ ggplot(data_aggregated) +
 
 
 ```{r}
-# fit <- stan_glmer(
-#   log(RadialError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-#   data = data_aggregated,
-#   family = gaussian,
-#   chains = 2,
-#   refresh = 0,
-#   seed = 0
-# )
+fit <- stan_glmer(
+  log(RadialError) ~ Trial + Condition + Player + TrialWithinCondition:Condition + (Condition | Participant),
+  data = data_aggregated,
+  family = gaussian,
+  chains = 2,
+  refresh = 0,
+  seed = 0
+)
 # save(fit, file="fit.Rda")
 
-load("fit.Rda")
+# load("fit.Rda")
 
-pp_check(fit)
+# pp_check(fit)
 
-mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
-mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
-mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
-mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
+# mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
+# mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
+# mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
+# mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
 
-ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
+# ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
 print(fit, digits = 3, detail = FALSE)
-cat("\n\n")
-sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
-cat("\n\n")
-sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
+# cat("\n\n")
+# sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
+# cat("\n\n")
+# sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
 ```
 
-
-
 ```{r fig.width=9, fig.height=6, fig.retina=3}
-dual_color_scale <- c("#1A237E", "#FF6F00")
+dual_color_scale <- c("#1A237E", "#F57C00")
 
 fit_samples <- as.data.frame(fit)
 slopes.lw = 0.02
 slopes.alpha = 0.01
-preds <- add_linpred_draws(fit, newdata = mutate(data_aggregated, Trial = ConditionTrial), ndraws = 100, value = ".pred")
+preds <- add_linpred_draws(fit, newdata = data_aggregated, ndraws = 100, value = ".pred")
 
-ggplot(data_aggregated, aes(factor(ConditionTrial), log(RadialError), color = Condition, fill = Condition)) +
+ggplot(data_aggregated, aes(factor(TrialWithinCondition), log(RadialError), color = ConditionName, fill = ConditionName)) +
   geom_point(alpha = 0.5, position = position_dodge(width=0.3)) +
   geom_split_violin(alpha = 0.2, trim = TRUE, color = NA) +
   coord_cartesian(xlim = c(0, 11), ylim = c(-0.5, 4.8), expand = FALSE) +
@@ -101,19 +102,19 @@ ggplot(data_aggregated, aes(factor(ConditionTrial), log(RadialError), color = Co
   ) +
   geom_abline(
     data = fit_samples,
-    aes(intercept = `(Intercept)` + `ConditionLit room`, slope = `Trial` + `Trial:ConditionLit room`),
+    aes(intercept = `(Intercept)` + `Condition` + 10 * `Trial`, slope = `Trial` + `Condition:TrialWithinCondition`),
     color = dual_color_scale[2],
     linewidth = slopes.lw,
     alpha = slopes.alpha
   ) +
   geom_abline(
     data = summarise(fit_samples, across(everything(), median)),
-    aes(intercept = `(Intercept)` + `ConditionLit room`, slope = `Trial` + `Trial:ConditionLit room`),
+    aes(intercept = `(Intercept)` + `Condition` + 10 * `Trial`, slope = `Trial` + `Condition:TrialWithinCondition`),
     color = dual_color_scale[2],
     linewidth = 1
   ) +
-  # stat_lineribbon(data = preds, aes(as.numeric(Trial), y = .pred), .width = c(0.99, 0.9), alpha = 0.1) +
-  # stat_summary(data = preds, aes(as.numeric(Trial), .pred), geom = "line", fun = "median", linewidth = 1) +
+  # stat_lineribbon(data = preds, aes(as.numeric(TrialWithinCondition), y = .pred), .width = c(0.99, 0.9), alpha = 0.1) +
+  # stat_summary(data = preds, aes(as.numeric(TrialWithinCondition), .pred), geom = "line", fun = "median", linewidth = 1) +
   scale_color_manual(values = dual_color_scale) +
   scale_fill_manual(values = dual_color_scale) +
   labs(x = "Trial", y = "Radial Error\n(log cm)") +
@@ -126,7 +127,7 @@ ggplot(data_aggregated, aes(factor(ConditionTrial), log(RadialError), color = Co
     panel.grid.major.x = element_blank(),
     axis.line = element_line(color="#222222", linewidth = 0.2),
     axis.ticks = element_line(color = "#222222", linewidth = 0.2),
-    axis.ticks.length = unit(4, "pt"),
+    axis.ticks.length = unit(4, "pt")
   )
 ```
 
@@ -155,25 +156,6 @@ ggplot(data_aggregated, aes(factor(ConditionTrial), log(RadialError), color = Co
 ```
 
 ```{r}
-# fit_gamma <- stan_glmer(
-#   RadialError ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-#   data = data_aggregated,
-#   family = Gamma(link = "identity"),
-#   chains = 2,
-#   # refresh = 0,
-#   seed = 0
-# )
-
-# modelsummary::modelsummary(
-#   models = list("Lognormal" = fit, "Gamma" = fit_gamma), 
-#   # shape = formula(model + term ~ statistic), 
-#   statistic = list("CI" = "[{conf.low}, {conf.high}]"),
-#   coef_omit = c("^Sigma"),
-#   # gof_map = NA, 
-#   conf_level = 0.9,
-#   fmt = 3
-# )
-
 modelsummary::modelsummary(
   models = fit,
   shape = formula(term ~ statistic),
@@ -184,20 +166,6 @@ modelsummary::modelsummary(
 )
 ```
 
-```{r}
-# kin_fit <- stan_glmer(
-#   log(RadialError) ~ Trial + Condition + Player + Trial:Condition + BallAltitudeMax + BallSpeedMax + (Condition | Participant),
-#   data = data_aggregated,
-#   family = gaussian,
-#   chains = 2,
-#   refresh = 0,
-#   seed = 0
-# )
-# pp_check(kin_fit)
-# 
-# mutate_if(as.data.frame(ci(kin_fit, ci = 0.9)), is.numeric, round, 3)
-# print(kin_fit, digits = 3, detail = FALSE)
-```
 
 
 
