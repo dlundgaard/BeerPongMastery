@@ -56,9 +56,9 @@ fit <- stan_glmer(
   refresh = 0,
   seed = 0
 )
-# save(fit, file="fit.Rda")
+save(fit, file="fit.Rda")
 
-# load("fit.Rda")
+load("fit.Rda")
 
 # pp_check(fit)
 
@@ -69,10 +69,10 @@ fit <- stan_glmer(
 
 # ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
 print(fit, digits = 3, detail = FALSE)
-# cat("\n\n")
-# sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
-# cat("\n\n")
-# sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
+cat("\n\n")
+sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
+cat("\n\n")
+sprintf("Probability of the interaction term Trial:Condition being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Condition:Trial` < 0)) %>% cat
 ```
 
 ```{r fig.width=9, fig.height=6, fig.retina=3}
@@ -117,7 +117,7 @@ ggplot(data_aggregated, aes(factor(TrialWithinCondition), log(RadialError), colo
   # stat_summary(data = preds, aes(as.numeric(TrialWithinCondition), .pred), geom = "line", fun = "median", linewidth = 1) +
   scale_color_manual(values = dual_color_scale) +
   scale_fill_manual(values = dual_color_scale) +
-  labs(x = "Trial", y = "Radial Error\n(log cm)") +
+  labs(x = "Trial in Condition", y = "Radial Error\n(log cm)", color = "Condition", fill = "Condition") +
   theme(
     plot.margin = margin(0, 0, 0, 0),
     axis.title = element_text(size = 8, color = "#555555"),
@@ -129,30 +129,6 @@ ggplot(data_aggregated, aes(factor(TrialWithinCondition), log(RadialError), colo
     axis.ticks = element_line(color = "#222222", linewidth = 0.2),
     axis.ticks.length = unit(4, "pt")
   )
-```
-
-```{r}
-# fit <- stan_glmer(
-#   log(RectificationError) ~ Trial + Condition + Player + Trial:Condition + (Condition | Participant),
-#   data = data_aggregated,
-#   family = gaussian,
-#   chains = 2,
-#   refresh = 0,
-#   seed = 0
-# )
-# pp_check(fit)
-# 
-# mcmc_areas(fit, prob = 0.95, pars = c("Trial"))
-# mcmc_areas(fit, prob = 0.95, pars = c("ConditionLit room"))
-# mcmc_areas(fit, prob = 0.95, pars = c("Player2"))
-# mcmc_areas(fit, prob = 0.95, pars = c("Trial:ConditionLit room"))
-# 
-# ci(fit, ci = 0.9) %>% as.data.frame() %>% mutate_if(is.numeric, round, 3)
-# print(fit, digits = 3, detail = FALSE)
-# cat("\n\n")
-# sprintf("Probability of Player 2 having a greater rate of trial-by-trial improvement is %.1f%%", 100 * mean(as.data.frame(fit)$Player2 < 0)) %>% cat
-# cat("\n\n")
-# sprintf("Probability of the interaction term Trial:ConditionLit room being negative (learning being enhanced in lit conditions) is %.1f%%\n\n", 100 * mean(as.data.frame(fit)$`Trial:ConditionLit room` < 0)) %>% cat
 ```
 
 ```{r}
