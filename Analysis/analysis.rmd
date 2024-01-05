@@ -48,15 +48,15 @@ ggplot(data_aggregated) +
 
 
 ```{r}
-fit <- stan_glmer(
-  log(RadialError) ~ Trial + Condition + Player + TrialWithinCondition:Condition + (Condition | Participant),
-  data = data_aggregated,
-  family = gaussian,
-  chains = 2,
-  refresh = 0,
-  seed = 0
-)
-save(fit, file="fit.Rda")
+# fit <- stan_glmer(
+#   log(RadialError) ~ Trial + Condition + Player + TrialWithinCondition:Condition + (Condition | Participant),
+#   data = data_aggregated,
+#   family = gaussian,
+#   chains = 2,
+#   refresh = 0,
+#   seed = 0
+# )
+# save(fit, file="fit.Rda")
 
 load("fit.Rda")
 
@@ -134,7 +134,7 @@ ggplot(data_aggregated, aes(factor(TrialWithinCondition), log(RadialError), colo
 ```{r}
 modelsummary::modelsummary(
   models = fit,
-  shape = formula(term ~ statistic),
+  shape = formula(model + term ~ statistic),
   statistic = c("[{conf.low}, {conf.high}]"),
   coef_omit = c("^Sigma"),
   conf_level = 0.9,
